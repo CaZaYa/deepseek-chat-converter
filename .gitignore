@@ -1,0 +1,21 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+.vscode/
+.idea/
+*.log
+*.spec
+_test_*/
+_测试输出_*/
+
+# 个人数据与测试产物，禁止提交
+测试用_*
+私人*
+chatbox备份_本地*
+_测试输出_*/
+_test_*/
+_sample_out/
