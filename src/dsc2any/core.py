@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 APP_NAME = "DeepSeek2Any"
-APP_VERSION = "1.1.0"
+APP_VERSION = "1.1.2"
 PROJECT_URL = "https://github.com/CaZaYa/deepseek-chat-converter"
 
 TEXT_FRAGMENTS = {"REQUEST", "RESPONSE", "TEMPLATE_RESPONSE"}
