@@ -106,6 +106,17 @@ class ConvertTest(unittest.TestCase):
         self.assertEqual(messages[1]["message"]["contentParts"][0]["type"], "reasoning")
         self.assertEqual(messages[1]["message"]["contentParts"][1]["text"], "你好呀")
 
+    def test_chatbox_mobile(self):
+        convert(self.zip, self.root / "cbm", fmt="chatbox-mobile", options=Options(with_thinking=True))
+        files = list((self.root / "cbm").glob("chatbox-exported-data-*.json"))
+        self.assertEqual(len(files), 1)
+        data = json.loads(files[0].read_text(encoding="utf-8"))
+        session = next(value for key, value in data.items() if key.startswith("session:"))
+        assistant = next(message for message in session["messages"] if message["role"] == "assistant")
+        self.assertEqual(assistant["status"], [])
+        self.assertEqual(assistant["finishReason"], "stop")
+        self.assertEqual(assistant["contentParts"][0]["type"], "reasoning")
+
     def test_invalid_package(self):
         bad = self.root / "bad.zip"
         bad.write_bytes(b"nope")

@@ -228,9 +228,19 @@ export async function writeChatboxMobile(conversations, includeThinking) {
         contentParts: parts,
         content: message.text,
         timestamp: (message.created || conversation.updated || conversation.created) * 1000,
+        wordCount: message.text.length,
+        tokenCount: Math.max(1, Math.floor(message.text.length / 2)),
       };
       if (message.role === 'assistant') {
-        Object.assign(item, { model: 'deepseek-chat', aiProvider: 'deepseek', status: 'finished', generating: false });
+        Object.assign(item, {
+          model: 'deepseek-chat',
+          aiProvider: 'deepseek',
+          // 手机端 Chatbox 的 status 必须是数组；字符串会让 AI 消息渲染直接报错。
+          status: [],
+          generating: false,
+          isStreamingMode: false,
+          finishReason: 'stop',
+        });
       }
       messages.push(item);
     }

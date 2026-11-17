@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 APP_NAME = "DeepSeek2Any"
-APP_VERSION = "1.1.2"
+APP_VERSION = "1.1.3"
 PROJECT_URL = "https://github.com/CaZaYa/deepseek-chat-converter"
 
 TEXT_FRAGMENTS = {"REQUEST", "RESPONSE", "TEMPLATE_RESPONSE"}
@@ -309,9 +309,19 @@ def write_chatbox_mobile(conversations, out_dir: Path, stamp: str) -> tuple[int,
                 "contentParts": parts,
                 "content": text,
                 "timestamp": (message.created or conversation.updated or conversation.created) * 1000,
+                "wordCount": len(message.text),
+                "tokenCount": max(1, len(message.text) // 2),
             }
             if message.role == "assistant":
-                item.update({"model": "deepseek-chat", "aiProvider": "deepseek", "status": "finished", "generating": False})
+                item.update({
+                    "model": "deepseek-chat",
+                    "aiProvider": "deepseek",
+                    # Chatbox 手机端的 status 必须是数组；字符串会让 AI 消息渲染报错。
+                    "status": [],
+                    "generating": False,
+                    "isStreamingMode": False,
+                    "finishReason": "stop",
+                })
             messages.append(item)
         payload[f"session:{session_id}"] = {
             "id": session_id,

@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.3
+
+- 修复 Chatbox 手机端 JSON 里 AI 消息的 `status` 字段类型（必须是数组），避免导入后 AI 回答显示 “Something went wrong”
+- 补齐 Chatbox 手机端消息的 `wordCount` / `tokenCount` / `finishReason` 字段
+
 ## 1.1.2
 
 - 手机网页版：会话标题勾选、搜索筛选、按批次导出
