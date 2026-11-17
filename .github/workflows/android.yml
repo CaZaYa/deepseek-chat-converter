@@ -1,0 +1,44 @@
+name: android
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.10.2"
+
+      - name: Build debug APK
+        run: gradle -p android assembleDebug --no-daemon
+
+      - name: Prepare APK
+        run: |
+          cp android/app/build/outputs/apk/debug/app-debug.apk android/DeepSeek2Any-mobile.apk
+          ls -lh android/DeepSeek2Any-mobile.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DeepSeek2Any-Android
+          path: android/DeepSeek2Any-mobile.apk
+
+      - name: Attach APK to release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: android/DeepSeek2Any-mobile.apk

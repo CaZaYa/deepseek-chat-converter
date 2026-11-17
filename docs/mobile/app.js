@@ -1,7 +1,7 @@
 import {
   openDeepSeek, parseDeepSeekEntries, writeChatbox, writeChatgpt,
   writeCherryMobileFromZip, writeChatboxMobile, writeJsonl, writeMarkdown,
-} from './converter.js?v=20261117g';
+} from './converter.js?v=20261117h';
 
 const $ = (id) => document.getElementById(id);
 const sourceInput = $('source');
@@ -152,6 +152,13 @@ function chunk(items, size) {
 function renderDownloads(results) {
   downloadsEl.replaceChildren();
   for (const result of results) {
+    if (!result.url) {
+      const saved = document.createElement('div');
+      saved.className = 'download';
+      saved.textContent = `已保存到手机下载目录：${result.filename}（${(result.size / 1024).toFixed(0)} KB）`;
+      downloadsEl.append(saved);
+      continue;
+    }
     const link = document.createElement('a');
     link.className = 'download';
     link.href = result.url;
@@ -162,15 +169,53 @@ function renderDownloads(results) {
   }
 }
 
+function bytesToBase64(bytes) {
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  }
+  return btoa(binary);
+}
+
+// APK 内置页面没有浏览器的 Blob 下载能力，改用原生桥分块写入“下载”目录。
+function saveToAndroid(filename, type, bytes) {
+  const saver = window.AndroidSaver;
+  if (!saver || typeof saver.begin !== 'function') return false;
+  try {
+    if (!saver.begin(filename, type)) return false;
+    const chunkSize = 256 * 1024;
+    for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+      const chunk = bytes.subarray(offset, Math.min(offset + chunkSize, bytes.length));
+      if (!saver.write(bytesToBase64(chunk))) {
+        saver.abort();
+        return false;
+      }
+    }
+    return saver.finish();
+  } catch (_) {
+    try { saver.abort(); } catch (_) { /* ignore */ }
+    return false;
+  }
+}
+
 function addDownload(result, results) {
   const type = result.filename.endsWith('.json') ? 'application/json'
     : result.filename.endsWith('.jsonl') ? 'application/jsonl'
     : 'application/zip';
-  const blob = new Blob([result.bytes], { type });
+  const bytes = result.bytes;
+  const size = bytes?.length || 0;
+  const saved = saveToAndroid(result.filename, type, bytes);
   result.bytes = null;
-  const url = URL.createObjectURL(blob);
-  downloadUrls.push(url);
-  const item = { filename: result.filename, size: blob.size, url };
+
+  let item;
+  if (saved) {
+    item = { filename: result.filename, size, url: null, saved: true };
+  } else {
+    const blob = new Blob([bytes], { type });
+    const url = URL.createObjectURL(blob);
+    downloadUrls.push(url);
+    item = { filename: result.filename, size: blob.size, url };
+  }
   if (result.imported !== undefined) {
     item.imported = result.imported;
     item.sessions = result.sessions;
@@ -305,8 +350,14 @@ runButton.addEventListener('click', async () => {
           ? `，${item.imported} 个会话`
           : `，本批 ${item.imported} 个 + 模板已有 ${item.sessions - item.imported} 个 = ${item.sessions} 个会话`)
         : '';
-      setStatus(`完成：${item.filename}（${(item.size / 1024).toFixed(0)} KB${countText}）。若没有自动下载，点下面的链接。`);
-      try { item.link.click(); } catch (_) { /* ignore */ }
+      if (item.saved) {
+        setStatus(`完成：${item.filename}（${(item.size / 1024).toFixed(0)} KB${countText}），已保存到手机「下载/DeepSeek2Any」目录。`);
+      } else {
+        setStatus(`完成：${item.filename}（${(item.size / 1024).toFixed(0)} KB${countText}）。若没有自动下载，点下面的链接。`);
+        try { item.link.click(); } catch (_) { /* ignore */ }
+      }
+    } else if (results.every((item) => item.saved)) {
+      setStatus(`完成：共 ${results.length} 个文件（${formatName}），已全部保存到手机「下载/DeepSeek2Any」目录。`);
     } else {
       setStatus(`完成：共 ${results.length} 个文件（${formatName}）。手机浏览器通常不允许一次自动下载多个，请点下面的链接逐个保存。`);
     }
