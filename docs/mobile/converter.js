@@ -378,12 +378,25 @@ function insertConversation(db, conversation, agentId, modelId) {
   return true;
 }
 
+function countTable(db, table) {
+  try {
+    return Number(db.selectValue(`SELECT COUNT(*) FROM ${table}`)) || 0;
+  } catch (_) {
+    return 0;
+  }
+}
+
 async function finishCherryMobile(db, template, manifest, sqlite3, JSZipLib) {
   const totalSessions = db.selectValue('SELECT COUNT(*) FROM agent_session');
   const totalMessages = db.selectValue('SELECT COUNT(*) FROM agent_session_message');
   const result = sqlite3.capi.sqlite3_js_db_export(db.pointer);
 
-  manifest.counts = { sessions: totalSessions, messages: totalMessages, files: 0, pluginConnections: 0 };
+  manifest.counts = {
+    sessions: totalSessions,
+    messages: totalMessages,
+    files: countTable(db, 'file_entry'),
+    pluginConnections: countTable(db, 'plugin_authorization'),
+  };
   for (const entry of manifest.entries || []) {
     if (entry.path === 'database/cherry.db') {
       entry.size = result.length;
@@ -392,12 +405,15 @@ async function finishCherryMobile(db, template, manifest, sqlite3, JSZipLib) {
   }
 
   const zip = new JSZipLib();
-  zip.file('manifest.json', JSON.stringify(manifest));
-  zip.file('database/cherry.db', result);
-  for (const name of Object.keys(template.files)) {
-    if (name.startsWith('avatars/') && !template.files[name].dir) {
-      zip.file(name, await template.files[name].async('uint8array'));
-    }
+  // 不要生成 database/、avatars/ 这类目录条目：Cherry 手机端恢复时会按
+  // “manifest.entries + manifest.json” 精确比对 ZIP 条目数，多出的目录会被判为损坏。
+  zip.file('manifest.json', JSON.stringify(manifest), { createFolders: false });
+  zip.file('database/cherry.db', result, { createFolders: false });
+  for (const entry of manifest.entries || []) {
+    if (entry.path === 'database/cherry.db') continue;
+    const file = template.file(entry.path);
+    if (!file || file.dir) continue;
+    zip.file(entry.path, await file.async('uint8array'), { createFolders: false });
   }
   // 手机端内存有限：数据库较大时直接存储，避免压缩阶段再次占用一倍内存。
   const compression = result.length > 16 * 1024 * 1024 ? 'STORE' : 'DEFLATE';
