@@ -77,16 +77,6 @@ https://cazaya.github.io/deepseek-chat-converter/mobile/
 >
 > 手机端 Cherry 的备份需要以你手机导出的备份作为模板；恢复会覆盖手机现有数据，操作前先备份手机。
 
-## 安卓 APK
-
-如果不想在抖音/群里发网页链接，可以直接分享 APK：
-
-- 在 [Releases](https://github.com/CaZaYa/deepseek-chat-converter/releases) 下载 `DeepSeek2Any-mobile.apk`
-- Android 10 及以上；APK 内置完整网页，离线转换，不申请网络权限
-- 生成的文件保存到手机「下载 / DeepSeek2Any」目录
-- 当前 APK 使用 debug 签名，适合直接分享测试；长期发布建议用自己的 release keystore 重新签名
-- iOS 不能安装 APK，只能使用手机网页版
-
 ## 迁移到 Cherry Studio 手机端
 
 手机端不能导入 ChatGPT JSON，只认自己的备份格式。模板只提供数据库结构和模型配置；默认只导出勾选的会话，需要保留模板旧聊天时再勾选「保留模板已有会话」。
