@@ -79,8 +79,12 @@ async function conversationFromZip(zip, entry, includeThinking) {
 
 export async function parseDeepSeek(buffer, includeThinking, JSZipLib) {
   const { zip, index } = await openDeepSeek(buffer, JSZipLib);
+  return parseDeepSeekEntries(zip, index, includeThinking);
+}
+
+export async function parseDeepSeekEntries(zip, entries, includeThinking) {
   const conversations = [];
-  for (const entry of index) {
+  for (const entry of entries) {
     const conversation = await conversationFromZip(zip, entry, includeThinking);
     if (conversation) conversations.push(conversation);
   }

@@ -26,19 +26,30 @@ jobs:
 
       - name: Build executables
         run: |
-          python -m PyInstaller --noconfirm --clean --onefile --windowed --name DeepSeek2Any --paths src --icon assets/icon.ico --add-data "assets/icon.ico;assets" --distpath dist --workpath build run_gui.py
-          python -m PyInstaller --noconfirm --clean --onefile --console --name DeepSeek2Any-CLI --paths src --icon assets/icon.ico --distpath dist --workpath build run_cli.py
+          python -m PyInstaller --noconfirm --clean --onefile --noupx --windowed --name DeepSeek2Any --paths src --icon assets/icon.ico --add-data "assets/icon.ico;assets" --distpath dist --workpath build run_gui.py
+          python -m PyInstaller --noconfirm --clean --onefile --noupx --console --name DeepSeek2Any-CLI --paths src --icon assets/icon.ico --distpath dist --workpath build run_cli.py
+
+      - name: Write checksums
+        shell: pwsh
+        run: |
+          Get-ChildItem dist/*.exe | ForEach-Object {
+            "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower())  $($_.Name)"
+          } | Set-Content dist/SHA256SUMS.txt
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: DeepSeek2Any-windows
-          path: dist/*.exe
+          path: |
+            dist/*.exe
+            dist/SHA256SUMS.txt
 
       - name: Attach to release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/*.exe
+          files: |
+            dist/*.exe
+            dist/SHA256SUMS.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

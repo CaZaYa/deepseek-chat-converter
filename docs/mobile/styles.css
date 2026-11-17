@@ -108,9 +108,13 @@ button:disabled { opacity: 0.6; }
   word-break: break-all;
 }
 
+.downloads {
+  margin-top: 12px;
+}
+
 .download {
   display: block;
-  margin-top: 12px;
+  margin-top: 8px;
   padding: 12px;
   border-radius: 10px;
   background: rgba(47, 93, 158, 0.1);
@@ -118,6 +122,78 @@ button:disabled { opacity: 0.6; }
   text-align: center;
   text-decoration: none;
   font-weight: 600;
+}
+
+.picker {
+  margin: 0 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.picker-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+}
+
+.picker-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.mini {
+  width: auto;
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.session-list {
+  max-height: 280px;
+  overflow: auto;
+}
+
+.session-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.session-row:last-child { border-bottom: 0; }
+
+.session-row input {
+  flex: 0 0 auto;
+  width: 17px;
+  height: 17px;
+  margin-top: 1px;
+}
+
+.session-row span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.note {
+  margin: -4px 0 14px;
+  padding: 9px 11px;
+  border-radius: 9px;
+  background: rgba(224, 79, 95, 0.1);
+  color: var(--muted);
+  font-size: 12px;
 }
 
 footer {
