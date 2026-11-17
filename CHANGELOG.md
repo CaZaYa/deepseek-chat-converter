@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.4
+
+- 修复 Cherry 手机端备份的 AI/用户消息缺少 `id` 和 `state`，恢复后显示“部分内容无法显示”
+- 网页版时间戳修复并加版本号，避免浏览器继续使用旧缓存
+
 ## 1.1.3
 
 - 修复 Chatbox 手机端 JSON 里 AI 消息的 `status` 字段类型（必须是数组），避免导入后 AI 回答显示 “Something went wrong”
