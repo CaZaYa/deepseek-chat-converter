@@ -1,6 +1,6 @@
 import {
-  filterConversations, parseDeepSeek, writeChatbox, writeChatgpt,
-  writeCherryMobile, writeChatboxMobile, writeJsonl, writeMarkdown,
+  filterConversations, filterEntries, openDeepSeek, parseDeepSeek, writeChatbox,
+  writeChatgpt, writeCherryMobileFromZip, writeChatboxMobile, writeJsonl, writeMarkdown,
 } from './converter.js';
 
 const $ = (id) => document.getElementById(id);
@@ -49,32 +49,50 @@ runButton.addEventListener('click', async () => {
   try {
     const buffer = await file.arrayBuffer();
     const thinking = thinkingInput.checked;
-    const conversations = await parseDeepSeek(buffer, thinking, window.JSZip);
-    const selected = filterConversations(conversations, filterInput.value);
-    if (!selected.length) throw new Error('没有匹配的会话，请检查筛选关键词');
-    setStatus(`已读取 ${selected.length} 个会话，正在转换…`);
-
     const format = formatSelect.value;
     let result;
+
     if (format === 'cherry-mobile') {
+      // 手机端格式逐条读取、逐条写入数据库，避免整包聊天记录同时占满手机内存。
       const templateFile = templateInput.files?.[0];
       if (!templateFile) throw new Error('Cherry 手机端格式需要先选择手机导出的备份作为模板');
+      const { zip, index } = await openDeepSeek(buffer, window.JSZip);
+      const entries = filterEntries(index, filterInput.value);
+      if (!entries.length) {
+        throw new Error(index.length
+          ? `筛选后没有会话：导出包共 ${index.length} 个，但没有标题包含“${filterInput.value.trim()}”的。请清空筛选或换个标题关键词。`
+          : '这个导出包里没有会话');
+      }
+      setStatus(`已匹配 ${entries.length} 个会话，正在准备转换…`);
       const templateBuffer = await templateFile.arrayBuffer();
       setStatus('正在加载 SQLite 引擎…');
       const sqlite3 = await loadSqlite();
-      result = await writeCherryMobile(selected, templateBuffer, window.JSZip, sqlite3);
-    } else if (format === 'chatbox') {
-      result = await writeChatbox(selected, thinking, window.JSZip);
-    } else if (format === 'chatbox-mobile') {
-      result = await writeChatboxMobile(selected, thinking);
-    } else if (format === 'markdown') {
-      result = await writeMarkdown(selected, thinking, window.JSZip);
-    } else if (format === 'chatgpt') {
-      result = await writeChatgpt(selected, thinking, window.JSZip);
-    } else if (format === 'jsonl') {
-      result = await writeJsonl(selected, thinking);
+      result = await writeCherryMobileFromZip(
+        zip, entries, thinking, templateBuffer, window.JSZip, sqlite3,
+        (done, total) => setStatus(`正在写入数据库… ${done}/${total} 个会话`),
+      );
     } else {
-      throw new Error('未知格式');
+      const conversations = await parseDeepSeek(buffer, thinking, window.JSZip);
+      const selected = filterConversations(conversations, filterInput.value);
+      if (!selected.length) {
+        throw new Error(conversations.length
+          ? `筛选后没有会话：导出包共 ${conversations.length} 个，但没有标题包含“${filterInput.value.trim()}”的。请清空筛选或换个标题关键词。`
+          : '这个导出包里没有会话');
+      }
+      setStatus(`已读取 ${selected.length} 个会话，正在转换…`);
+      if (format === 'chatbox') {
+        result = await writeChatbox(selected, thinking, window.JSZip);
+      } else if (format === 'chatbox-mobile') {
+        result = await writeChatboxMobile(selected, thinking);
+      } else if (format === 'markdown') {
+        result = await writeMarkdown(selected, thinking, window.JSZip);
+      } else if (format === 'chatgpt') {
+        result = await writeChatgpt(selected, thinking, window.JSZip);
+      } else if (format === 'jsonl') {
+        result = await writeJsonl(selected, thinking);
+      } else {
+        throw new Error('未知格式');
+      }
     }
 
     const type = result.filename.endsWith('.json') ? 'application/json'

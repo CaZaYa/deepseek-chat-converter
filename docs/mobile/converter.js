@@ -32,50 +32,68 @@ function ts(value) {
   return Number.isFinite(n) ? n : 0;
 }
 
-export async function parseDeepSeek(buffer, includeThinking, JSZipLib) {
+export async function openDeepSeek(buffer, JSZipLib) {
   const zip = await JSZipLib.loadAsync(buffer);
   const indexFile = zip.file('chat_session_index.json');
   if (!indexFile) throw new Error('这不是 DeepSeek 导出的数据包（缺少 chat_session_index.json）');
   const index = JSON.parse(await indexFile.async('string'));
-  const conversations = [];
+  return { zip, index };
+}
 
-  for (const entry of index) {
-    const file = zip.file(`chat_sessions/${entry.id}.json`);
-    if (!file) continue;
-    const data = JSON.parse(await file.async('string'));
-    const messages = (data.messages || []).map((raw) => {
-      const texts = [];
-      const reasons = [];
-      for (const fragment of raw.fragments || []) {
-        if (['REQUEST', 'RESPONSE', 'TEMPLATE_RESPONSE'].includes(fragment.type) && fragment.content) {
-          texts.push(fragment.content.trim());
-        } else if (fragment.type === 'THINK' && includeThinking && fragment.content) {
-          reasons.push(fragment.content.trim());
-        } else if (fragment.type === 'FILE') {
-          for (const info of fragment.files || []) {
-            texts.push(`[${info.is_image ? '图片' : '附件'}：${info.file_name || '附件'}]`);
-          }
+async function conversationFromZip(zip, entry, includeThinking) {
+  const file = zip.file(`chat_sessions/${entry.id}.json`);
+  if (!file) return null;
+  const data = JSON.parse(await file.async('string'));
+  const messages = (data.messages || []).map((raw) => {
+    const texts = [];
+    const reasons = [];
+    for (const fragment of raw.fragments || []) {
+      if (['REQUEST', 'RESPONSE', 'TEMPLATE_RESPONSE'].includes(fragment.type) && fragment.content) {
+        texts.push(fragment.content.trim());
+      } else if (fragment.type === 'THINK' && includeThinking && fragment.content) {
+        reasons.push(fragment.content.trim());
+      } else if (fragment.type === 'FILE') {
+        for (const info of fragment.files || []) {
+          texts.push(`[${info.is_image ? '图片' : '附件'}：${info.file_name || '附件'}]`);
         }
       }
-      return {
-        id: String(raw.id),
-        parent: raw.parent_id == null ? null : String(raw.parent_id),
-        role: raw.role === 'USER' ? 'user' : 'assistant',
-        text: texts.join('\n\n'),
-        reasoning: reasons.join('\n\n'),
-        created: ts(raw.inserted_at),
-      };
-    });
-    conversations.push({
-      id: data.id || entry.id,
-      title: data.title || entry.title || '未命名对话',
-      created: ts(data.inserted_at),
-      updated: ts(data.updated_at),
-      current: data.current_message_id == null ? null : String(data.current_message_id),
-      messages,
-    });
+    }
+    return {
+      id: String(raw.id),
+      parent: raw.parent_id == null ? null : String(raw.parent_id),
+      role: raw.role === 'USER' ? 'user' : 'assistant',
+      text: texts.join('\n\n'),
+      reasoning: reasons.join('\n\n'),
+      created: ts(raw.inserted_at),
+    };
+  });
+  return {
+    id: data.id || entry.id,
+    title: data.title || entry.title || '未命名对话',
+    created: ts(data.inserted_at),
+    updated: ts(data.updated_at),
+    current: data.current_message_id == null ? null : String(data.current_message_id),
+    messages,
+  };
+}
+
+export async function parseDeepSeek(buffer, includeThinking, JSZipLib) {
+  const { zip, index } = await openDeepSeek(buffer, JSZipLib);
+  const conversations = [];
+  for (const entry of index) {
+    const conversation = await conversationFromZip(zip, entry, includeThinking);
+    if (conversation) conversations.push(conversation);
   }
   return conversations;
+}
+
+export function filterEntries(entries, keywords) {
+  const list = String(keywords || '')
+    .split(/[,，]/)
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+  if (!list.length) return entries;
+  return entries.filter((entry) => list.some((k) => String(entry.title || '').toLowerCase().includes(k)));
 }
 
 export function filterConversations(conversations, keywords) {
@@ -303,7 +321,7 @@ async function sha256(bytes) {
   return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-export async function writeCherryMobile(conversations, templateBuffer, JSZipLib, sqlite3) {
+async function openCherryTemplate(templateBuffer, JSZipLib, sqlite3) {
   const template = await JSZipLib.loadAsync(templateBuffer);
   const manifestFile = template.file('manifest.json');
   const dbFile = template.file('database/cherry.db');
@@ -312,72 +330,119 @@ export async function writeCherryMobile(conversations, templateBuffer, JSZipLib,
   if (manifest.product !== 'cherry-mobile') throw new Error('模板不是 Cherry 手机端备份（product 不是 cherry-mobile）');
 
   const dbBytes = await dbFile.async('uint8array');
-  const ptr = sqlite3.wasm.allocFromTypedArray(dbBytes);
+  const capacity = dbBytes.length + 8 * 1024 * 1024;
+  const ptr = sqlite3.wasm.alloc(capacity);
+  sqlite3.wasm.heap8u().set(dbBytes, ptr);
   const db = new sqlite3.oo1.DB();
-  let rc = sqlite3.capi.sqlite3_deserialize(db.pointer, 'main', ptr, dbBytes.length, dbBytes.length, 0);
+  const flags = sqlite3.capi.SQLITE_DESERIALIZE_RESIZEABLE | sqlite3.capi.SQLITE_DESERIALIZE_FREEONCLOSE;
+  const rc = sqlite3.capi.sqlite3_deserialize(db.pointer, 'main', ptr, dbBytes.length, capacity, flags);
   if (rc) throw new Error('无法打开模板数据库：' + rc);
 
-  try {
-    const agentId = db.selectValue('SELECT id FROM agent WHERE deleted_at IS NULL LIMIT 1');
-    if (!agentId) throw new Error('模板里没有可用的智能体，请先在手机上创建智能体并重新备份');
-    const modelId = db.selectValue("SELECT id FROM user_model WHERE id LIKE 'deepseek::%' LIMIT 1")
-      || db.selectValue('SELECT id FROM user_model LIMIT 1') || null;
+  const agentId = db.selectValue('SELECT id FROM agent WHERE deleted_at IS NULL LIMIT 1');
+  if (!agentId) {
+    db.close();
+    throw new Error('模板里没有可用的智能体，请先在手机上创建智能体并重新备份');
+  }
+  const modelId = db.selectValue("SELECT id FROM user_model WHERE id LIKE 'deepseek::%' LIMIT 1")
+    || db.selectValue('SELECT id FROM user_model LIMIT 1') || null;
+  return { template, manifest, db, agentId, modelId };
+}
 
+function insertConversation(db, conversation, agentId, modelId) {
+  const path = activePath(conversation);
+  if (!path.length) return false;
+  const sessionId = stableId(conversation.id, 'session');
+  db.exec({ sql: 'DELETE FROM agent_session_message WHERE session_id = ?', bind: [sessionId] });
+  db.exec({ sql: 'DELETE FROM agent_session WHERE id = ?', bind: [sessionId] });
+  const created = (conversation.created || conversation.updated) * 1000;
+  const updated = (conversation.updated || conversation.created) * 1000;
+  db.exec({
+    sql: 'INSERT INTO agent_session (id, agent_id, name, is_name_manually_edited, last_activity_at, created_at, updated_at, runtime_revision) VALUES (?, ?, ?, 0, ?, ?, ?, 0)',
+    bind: [sessionId, agentId, conversation.title, updated, created, updated],
+  });
+  for (const message of path) {
+    const parts = [];
+    if (message.reasoning) parts.push({ type: 'reasoning', text: message.reasoning });
+    if (message.text) parts.push({ type: 'text', text: message.text });
+    if (!parts.length) continue;
+    const time = (message.created || conversation.updated || conversation.created) * 1000;
+    db.exec({
+      sql: "INSERT INTO agent_session_message (id, session_id, role, data, status, model_id, searchable_text, created_at, updated_at) VALUES (?, ?, ?, ?, 'success', ?, ?, ?, ?)",
+      bind: [
+        stableId(conversation.id, message.id), sessionId, message.role,
+        JSON.stringify({ parts }), message.role === 'assistant' ? modelId : null,
+        parts.map((p) => p.text).join('\n'), time, time,
+      ],
+    });
+  }
+  return true;
+}
+
+async function finishCherryMobile(db, template, manifest, sqlite3, JSZipLib) {
+  const totalSessions = db.selectValue('SELECT COUNT(*) FROM agent_session');
+  const totalMessages = db.selectValue('SELECT COUNT(*) FROM agent_session_message');
+  const result = sqlite3.capi.sqlite3_js_db_export(db.pointer);
+
+  manifest.counts = { sessions: totalSessions, messages: totalMessages, files: 0, pluginConnections: 0 };
+  for (const entry of manifest.entries || []) {
+    if (entry.path === 'database/cherry.db') {
+      entry.size = result.length;
+      entry.sha256 = await sha256(result);
+    }
+  }
+
+  const zip = new JSZipLib();
+  zip.file('manifest.json', JSON.stringify(manifest));
+  zip.file('database/cherry.db', result);
+  for (const name of Object.keys(template.files)) {
+    if (name.startsWith('avatars/') && !template.files[name].dir) {
+      zip.file(name, await template.files[name].async('uint8array'));
+    }
+  }
+  // 手机端内存有限：数据库较大时直接存储，避免压缩阶段再次占用一倍内存。
+  const compression = result.length > 16 * 1024 * 1024 ? 'STORE' : 'DEFLATE';
+  const bytes = await zip.generateAsync({ type: 'uint8array', compression });
+  return { filename: `cherry-mobile-${stamp()}.zip`, bytes, sessions: totalSessions, messages: totalMessages };
+}
+
+export async function writeCherryMobile(conversations, templateBuffer, JSZipLib, sqlite3) {
+  const { template, manifest, db, agentId, modelId } = await openCherryTemplate(templateBuffer, JSZipLib, sqlite3);
+  try {
     let imported = 0;
     db.exec('BEGIN');
     for (const conversation of conversations) {
-      const path = activePath(conversation);
-      if (!path.length) continue;
-      const sessionId = stableId(conversation.id, 'session');
-      db.exec({ sql: 'DELETE FROM agent_session_message WHERE session_id = ?', bind: [sessionId] });
-      db.exec({ sql: 'DELETE FROM agent_session WHERE id = ?', bind: [sessionId] });
-      const created = (conversation.created || conversation.updated) * 1000;
-      const updated = (conversation.updated || conversation.created) * 1000;
-      db.exec({
-        sql: 'INSERT INTO agent_session (id, agent_id, name, is_name_manually_edited, last_activity_at, created_at, updated_at, runtime_revision) VALUES (?, ?, ?, 0, ?, ?, ?, 0)',
-        bind: [sessionId, agentId, conversation.title, updated, created, updated],
-      });
-      for (const message of path) {
-        const parts = [];
-        if (message.reasoning) parts.push({ type: 'reasoning', text: message.reasoning });
-        if (message.text) parts.push({ type: 'text', text: message.text });
-        if (!parts.length) continue;
-        const time = (message.created || conversation.updated || conversation.created) * 1000;
-        db.exec({
-          sql: 'INSERT INTO agent_session_message (id, session_id, role, data, status, model_id, searchable_text, created_at, updated_at) VALUES (?, ?, ?, ?, \'success\', ?, ?, ?, ?)',
-          bind: [
-            stableId(conversation.id, message.id), sessionId, message.role,
-            JSON.stringify({ parts }), message.role === 'assistant' ? modelId : null,
-            parts.map((p) => p.text).join('\n'), time, time,
-          ],
-        });
-      }
-      imported += 1;
+      if (insertConversation(db, conversation, agentId, modelId)) imported += 1;
     }
     db.exec('COMMIT');
+    const result = await finishCherryMobile(db, template, manifest, sqlite3, JSZipLib);
+    result.sessions = imported;
+    return result;
+  } catch (error) {
+    try { db.exec('ROLLBACK'); } catch (_) { /* ignore */ }
+    throw error;
+  } finally {
+    db.close();
+  }
+}
 
-    const totalSessions = db.selectValue('SELECT COUNT(*) FROM agent_session');
-    const totalMessages = db.selectValue('SELECT COUNT(*) FROM agent_session_message');
-    const result = sqlite3.capi.sqlite3_js_db_export(db.pointer);
-
-    manifest.counts = { sessions: totalSessions, messages: totalMessages, files: 0, pluginConnections: 0 };
-    for (const entry of manifest.entries || []) {
-      if (entry.path === 'database/cherry.db') {
-        entry.size = result.length;
-        entry.sha256 = await sha256(result);
-      }
+export async function writeCherryMobileFromZip(zip, entries, includeThinking, templateBuffer, JSZipLib, sqlite3, onProgress) {
+  const { template, manifest, db, agentId, modelId } = await openCherryTemplate(templateBuffer, JSZipLib, sqlite3);
+  try {
+    let imported = 0;
+    db.exec('BEGIN');
+    for (const entry of entries) {
+      const conversation = await conversationFromZip(zip, entry, includeThinking);
+      if (conversation && insertConversation(db, conversation, agentId, modelId)) imported += 1;
+      // 每处理一批就释放会话对象，避免整包聊天记录同时占在手机内存里。
+      if (onProgress && imported > 0 && imported % 20 === 0) onProgress(imported, entries.length);
     }
-
-    const zip = new JSZipLib();
-    zip.file('manifest.json', JSON.stringify(manifest));
-    zip.file('database/cherry.db', result);
-    for (const name of Object.keys(template.files)) {
-      if (name.startsWith('avatars/') && !template.files[name].dir) {
-        zip.file(name, await template.files[name].async('uint8array'));
-      }
-    }
-    const bytes = await zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE' });
-    return { filename: `cherry-mobile-${stamp()}.zip`, bytes, sessions: imported, messages: totalMessages };
+    db.exec('COMMIT');
+    const result = await finishCherryMobile(db, template, manifest, sqlite3, JSZipLib);
+    result.sessions = imported;
+    return result;
+  } catch (error) {
+    try { db.exec('ROLLBACK'); } catch (_) { /* ignore */ }
+    throw error;
   } finally {
     db.close();
   }
