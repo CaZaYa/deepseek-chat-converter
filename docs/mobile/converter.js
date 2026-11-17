@@ -221,35 +221,60 @@ export async function writeChatboxMobile(conversations, includeThinking) {
     sessions.push({ id: sessionId, name: conversation.title, starred: false, type: 'chat' });
     const messages = [];
     for (const message of path) {
+      const timestamp = (message.created || conversation.updated || conversation.created) * 1000;
       const parts = [];
-      if (message.reasoning) parts.push({ type: 'reasoning', text: message.reasoning });
+      if (message.reasoning) {
+        parts.push({
+          type: 'reasoning',
+          text: message.reasoning,
+          startTime: timestamp,
+          duration: 0,
+        });
+      }
       if (message.text) parts.push({ type: 'text', text: message.text });
       if (!parts.length) continue;
+      const wordCount = message.text.length;
+      const tokenCount = Math.max(1, Math.floor(wordCount / 2));
       const item = {
         id: stableId(conversation.id, message.id),
         role: message.role,
         contentParts: parts,
-        content: message.text,
-        timestamp: (message.created || conversation.updated || conversation.created) * 1000,
-        wordCount: message.text.length,
-        tokenCount: Math.max(1, Math.floor(message.text.length / 2)),
+        timestamp,
+        wordCount,
+        tokenCount,
       };
       if (message.role === 'assistant') {
         Object.assign(item, {
           model: 'deepseek-chat',
           aiProvider: 'deepseek',
-          // 手机端 Chatbox 的 status 必须是数组；字符串会让 AI 消息渲染直接报错。
+          // Chatbox 手机端要求 status 是数组；字符串会让 AI 消息渲染直接报错。
           status: [],
           generating: false,
-          isStreamingMode: false,
+          isStreamingMode: true,
+          firstTokenLatency: 0,
+          tokensUsed: tokenCount,
+          tokenCountMap: { deepseek: tokenCount, default: tokenCount },
           finishReason: 'stop',
         });
+      } else {
+        item.content = message.text;
       }
       messages.push(item);
     }
     payload[`session:${sessionId}`] = {
-      id: sessionId, name: conversation.title, type: 'chat', starred: false,
-      settings: { provider: 'deepseek', modelId: 'deepseek-chat', temperature: 0.7 },
+      id: sessionId,
+      name: conversation.title,
+      type: 'chat',
+      starred: false,
+      threadName: conversation.title,
+      messageForksHash: {},
+      settings: {
+        provider: 'deepseek',
+        modelId: 'deepseek-chat',
+        temperature: 0.7,
+        maxContextMessageCount: 9007199254740991,
+        topP: 1,
+      },
       messages,
     };
   }
