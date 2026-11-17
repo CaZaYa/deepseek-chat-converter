@@ -223,25 +223,17 @@ export async function writeChatboxMobile(conversations, includeThinking) {
     for (const message of path) {
       const timestamp = (message.created || conversation.updated || conversation.created) * 1000;
       const parts = [];
-      if (message.reasoning) {
-        parts.push({
-          type: 'reasoning',
-          text: message.reasoning,
-          startTime: timestamp,
-          duration: 0,
-        });
-      }
+      if (message.reasoning) parts.push({ type: 'reasoning', text: message.reasoning });
       if (message.text) parts.push({ type: 'text', text: message.text });
       if (!parts.length) continue;
-      const wordCount = message.text.length;
-      const tokenCount = Math.max(1, Math.floor(wordCount / 2));
       const item = {
         id: stableId(conversation.id, message.id),
         role: message.role,
         contentParts: parts,
+        content: message.text,
         timestamp,
-        wordCount,
-        tokenCount,
+        wordCount: message.text.length,
+        tokenCount: Math.max(1, Math.floor(message.text.length / 2)),
       };
       if (message.role === 'assistant') {
         Object.assign(item, {
@@ -250,14 +242,9 @@ export async function writeChatboxMobile(conversations, includeThinking) {
           // Chatbox 手机端要求 status 是数组；字符串会让 AI 消息渲染直接报错。
           status: [],
           generating: false,
-          isStreamingMode: true,
-          firstTokenLatency: 0,
-          tokensUsed: tokenCount,
-          tokenCountMap: { deepseek: tokenCount, default: tokenCount },
+          isStreamingMode: false,
           finishReason: 'stop',
         });
-      } else {
-        item.content = message.text;
       }
       messages.push(item);
     }
@@ -266,15 +253,7 @@ export async function writeChatboxMobile(conversations, includeThinking) {
       name: conversation.title,
       type: 'chat',
       starred: false,
-      threadName: conversation.title,
-      messageForksHash: {},
-      settings: {
-        provider: 'deepseek',
-        modelId: 'deepseek-chat',
-        temperature: 0.7,
-        maxContextMessageCount: 9007199254740991,
-        topP: 1,
-      },
+      settings: { provider: 'deepseek', modelId: 'deepseek-chat', temperature: 0.7 },
       messages,
     };
   }

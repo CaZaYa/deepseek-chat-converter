@@ -29,7 +29,7 @@ class App(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title(f"{APP_NAME} {APP_VERSION}")
-        self.geometry("720x680")
+        self.geometry("720x720")
         self.minsize(660, 520)
         self._set_window_icon()
 
@@ -40,6 +40,7 @@ class App(tk.Tk):
         self.select_var = tk.StringVar()
         self.format_var = tk.StringVar(value="markdown")
         self.thinking_var = tk.BooleanVar(value=False)
+        self.keep_template_var = tk.BooleanVar(value=False)
         self.status_var = tk.StringVar(value="等待开始")
 
         self.events: queue.Queue = queue.Queue()
@@ -90,6 +91,9 @@ class App(tk.Tk):
         ttk.Label(files, text="只导出标题包含").grid(row=4, column=0, sticky="w", pady=3)
         ttk.Entry(files, textvariable=self.select_var).grid(row=4, column=1, sticky="ew", padx=8, pady=3)
         ttk.Label(files, text="逗号分隔，留空导出全部").grid(row=4, column=2, sticky="w")
+        ttk.Checkbutton(files, text="保留模板已有会话（不勾选 = 清空模板，只导出勾选）", variable=self.keep_template_var).grid(
+            row=5, column=1, columnspan=2, sticky="w", pady=(4, 0)
+        )
         files.columnconfigure(1, weight=1)
 
         formats = ttk.LabelFrame(outer, text=" 2. 输出格式 ", padding=(12, 8, 12, 10))
@@ -203,6 +207,7 @@ class App(tk.Tk):
             with_thinking=self.thinking_var.get(),
             template=template or None,
             select=tuple(item.strip() for item in self.select_var.get().split(",") if item.strip()),
+            keep_template=self.keep_template_var.get(),
         )
         threading.Thread(
             target=self._worker,

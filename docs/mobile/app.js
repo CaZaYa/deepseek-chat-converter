@@ -1,7 +1,7 @@
 import {
   openDeepSeek, parseDeepSeekEntries, writeChatbox, writeChatgpt,
   writeCherryMobileFromZip, writeChatboxMobile, writeJsonl, writeMarkdown,
-} from './converter.js?v=20261117e';
+} from './converter.js?v=20261117f';
 
 const $ = (id) => document.getElementById(id);
 const sourceInput = $('source');

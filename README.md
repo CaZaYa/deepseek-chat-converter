@@ -66,20 +66,21 @@ https://cazaya.github.io/deepseek-chat-converter/mobile/
 ```
 
 - 选择 DeepSeek 导出包，在手机上生成 Cherry 手机端备份 / Chatbox 备份 / Markdown / JSON
-- 所有处理都在浏览器本地完成，不上传文件
 - 读取导出包后列出全部会话标题，可搜索、勾选；支持按数量分批生成独立文件
+- 模板已有会话可选「只导出勾选（清空模板）」或「保留并追加」
 - 可选择是否保留思考过程
+- 所有转换在浏览器本地完成；首次打开需要联网加载页面，手机流量可用（前提是能访问 GitHub Pages）
 - 可以“添加到主屏幕”，当成轻量 App 使用
 
 > 手机端 Cherry 的备份需要以你手机导出的备份作为模板；恢复会覆盖手机现有数据，操作前先备份手机。
 
 ## 迁移到 Cherry Studio 手机端
 
-手机端不能导入 ChatGPT JSON，只认自己的备份格式。流程是「以手机备份为模板，保留其中已有会话，再追加要迁移的会话」：
+手机端不能导入 ChatGPT JSON，只认自己的备份格式。模板只提供数据库结构和模型配置；默认只导出勾选的会话，需要保留模板旧聊天时再勾选「保留模板已有会话」。
 
 1. 手机 Cherry → 设置 → 备份与恢复 → 创建备份，把 zip 传到电脑
 2. 打开工具，格式选「Cherry 手机端备份」，在「手机端模板」里选这份备份
-3. 工具读取导出包后，在会话列表里勾选要迁移的标题（可先搜索再点「只选当前」）
+3. 工具读取导出包后，在会话列表里勾选要迁移的标题（可先搜索再点「只选当前」）；电脑版对应勾选「保留模板已有会话」
 4. 「模板里已有的会话」默认选「只导出勾选」：模板只提供数据库结构和配置，不会把模板里的旧聊天一起导出。要追加到模板旧聊天里，再选「保留模板已有会话」
 5. 生成 `cherry-mobile-*.zip`，传回手机 → 设置 → 备份与恢复 → 恢复
 
@@ -93,6 +94,7 @@ https://cazaya.github.io/deepseek-chat-converter/mobile/
 - 会话模型记为 `deepseek / deepseek-chat`；如果 Chatbox 没配该模型，历史仍能打开，继续发消息前在输入框重新选一次模型
 - **限制**：只保留当前活跃分支（重新生成掉的旧答案不导入）；图片只保留 `[图片：文件名]` 标记，**不导入原图**
 - 重复导入同一个包会按会话 ID 覆盖，不会产生重复会话
+- 手机端导入如果闪退或卡住，先在 Chatbox 里删除旧的损坏会话并重启 App，再导入新的 JSON
 
 ## 命令行（可选）
 
@@ -110,7 +112,14 @@ DeepSeek2Any-CLI.exe <导出包.zip> <输出目录> --format chatbox-mobile
 DeepSeek2Any-CLI.exe <导出包.zip> <输出目录> --format markdown --select "高数,碰撞" --name 我的备份
 ```
 
-`--with-thinking` 会把思考过程一起导出；`--name` 指定本次子文件夹名；`--select` 只导出标题包含指定关键词的会话；`--template` 是 cherry-mobile 格式必需的手机备份。
+`--with-thinking` 会把思考过程一起导出；`--name` 指定本次子文件夹名；`--select` 只导出标题包含指定关键词的会话；`--template` 是 cherry-mobile 格式必需的手机备份；`--keep-template` 保留模板已有会话（默认清空，只导出勾选）。
+
+## 使用说明 / Manuals
+
+- 中文：`docs/使用说明.docx`、`docs/使用说明.pdf`
+- English: `docs/User Guide (EN).docx`、`docs/User Guide (EN).pdf`
+
+分享给朋友时，直接发手机网页版链接即可：<https://cazaya.github.io/deepseek-chat-converter/mobile/>。
 
 ## 常见问题
 

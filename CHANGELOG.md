@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.1.5
+
+- 电脑版同步网页版逻辑：Cherry 手机端默认只导出勾选会话，新增「保留模板已有会话」/ `--keep-template`
+- Cherry 手机端消息片段补齐 `id` 和 `state`，恢复后不再显示“部分内容无法显示”
+- Chatbox 手机端 JSON 补齐原生导出的会话/消息字段
+- 网页版修复时间戳、缓存和 Chatbox/Cherry 字段问题
+- 更新中英文使用说明和 README
+
 ## 1.1.4
 
 - 修复 Cherry 手机端备份的 AI/用户消息缺少 `id` 和 `state`，恢复后显示“部分内容无法显示”

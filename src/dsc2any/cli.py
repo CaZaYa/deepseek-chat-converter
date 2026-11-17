@@ -33,6 +33,7 @@ def main(argv=None) -> int:
     parser.add_argument("--name", default=None, help="本次输出子文件夹名（默认按时间戳）")
     parser.add_argument("--template", default=None, help="cherry-mobile 格式需要：手机端导出的备份 zip")
     parser.add_argument("--select", default="", help="只导出标题包含这些关键词的会话，逗号分隔")
+    parser.add_argument("--keep-template", action="store_true", help="cherry-mobile: 保留模板已有会话并追加（默认清空模板会话）")
     parser.add_argument("--version", action="version", version=f"{APP_NAME} {APP_VERSION}")
     args = parser.parse_args(argv)
 
@@ -47,6 +48,7 @@ def main(argv=None) -> int:
                 chunk_size=args.chunk_size,
                 template=args.template,
                 select=tuple(item.strip() for item in args.select.split(",") if item.strip()),
+                keep_template=args.keep_template,
             ),
             log=print,
         )

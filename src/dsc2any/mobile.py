@@ -39,7 +39,7 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def write_cherry_mobile(conversations, out_dir: Path, template_path: str, stamp: str) -> tuple[int, int]:
+def write_cherry_mobile(conversations, out_dir: Path, template_path: str, stamp: str, keep_template: bool = False) -> tuple[int, int]:
     template = Path(template_path)
     if not template.is_file():
         raise ConversionError("请先选择手机端导出的 cherry-mobile 备份作为模板。")
@@ -79,6 +79,11 @@ def write_cherry_mobile(conversations, out_dir: Path, template_path: str, stamp:
             model_id = model_row[0] if model_row else None
 
             imported_sessions = imported_messages = 0
+            if not keep_template:
+                # 模板只提供数据库结构和配置；默认清空模板旧会话，避免把模板里的
+                # 1400 个会话一起导出。FTS 触发器会同步清理索引。
+                cur.execute("DELETE FROM agent_session_message")
+                cur.execute("DELETE FROM agent_session")
             for conversation in conversations:
                 messages = _active_path(conversation)
                 if not messages:

@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 APP_NAME = "DeepSeek2Any"
-APP_VERSION = "1.1.4"
+APP_VERSION = "1.1.5"
 PROJECT_URL = "https://github.com/CaZaYa/deepseek-chat-converter"
 
 TEXT_FRAGMENTS = {"REQUEST", "RESPONSE", "TEMPLATE_RESPONSE"}
@@ -56,6 +56,7 @@ class Options:
     chunk_size: int = 200
     template: str | None = None
     select: tuple[str, ...] = ()
+    keep_template: bool = False
 
 
 @dataclass
@@ -298,26 +299,19 @@ def write_chatbox_mobile(conversations, out_dir: Path, stamp: str) -> tuple[int,
             timestamp = (message.created or conversation.updated or conversation.created) * 1000
             parts = []
             if message.reasoning:
-                parts.append({
-                    "type": "reasoning",
-                    "text": message.reasoning,
-                    "startTime": timestamp,
-                    "duration": 0,
-                })
+                parts.append({"type": "reasoning", "text": message.reasoning})
             if message.text:
                 parts.append({"type": "text", "text": message.text})
             if not parts:
                 continue
-            text = message.text
-            word_count = len(message.text)
-            token_count = max(1, word_count // 2)
             item = {
                 "id": _stable_uuid(conversation.id, message.id),
                 "role": message.role,
                 "contentParts": parts,
+                "content": message.text,
                 "timestamp": timestamp,
-                "wordCount": word_count,
-                "tokenCount": token_count,
+                "wordCount": len(message.text),
+                "tokenCount": max(1, len(message.text) // 2),
             }
             if message.role == "assistant":
                 item.update({
@@ -326,29 +320,16 @@ def write_chatbox_mobile(conversations, out_dir: Path, stamp: str) -> tuple[int,
                     # Chatbox 手机端的 status 必须是数组；字符串会让 AI 消息渲染报错。
                     "status": [],
                     "generating": False,
-                    "isStreamingMode": True,
-                    "firstTokenLatency": 0,
-                    "tokensUsed": token_count,
-                    "tokenCountMap": {"deepseek": token_count, "default": token_count},
+                    "isStreamingMode": False,
                     "finishReason": "stop",
                 })
-            else:
-                item["content"] = text
             messages.append(item)
         payload[f"session:{session_id}"] = {
             "id": session_id,
             "name": conversation.title,
             "type": "chat",
             "starred": False,
-            "threadName": conversation.title,
-            "messageForksHash": {},
-            "settings": {
-                "provider": "deepseek",
-                "modelId": "deepseek-chat",
-                "temperature": 0.7,
-                "maxContextMessageCount": 9007199254740991,
-                "topP": 1,
-            },
+            "settings": {"provider": "deepseek", "modelId": "deepseek-chat", "temperature": 0.7},
             "messages": messages,
         }
         messages_total += len(messages)
@@ -550,7 +531,7 @@ def convert(zip_path, out_dir, fmt: str = "markdown", options: Options | None = 
 
         stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M")
         session_count, message_count = write_cherry_mobile(
-            conversations, out_dir, options.template, stamp
+            conversations, out_dir, options.template, stamp, keep_template=options.keep_template
         )
         report.conversations = session_count
         report.files = 1
