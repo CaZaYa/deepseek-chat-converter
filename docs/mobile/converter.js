@@ -29,7 +29,10 @@ export function stamp(date = new Date()) {
 
 function ts(value) {
   const n = Date.parse(value || '');
-  return Number.isFinite(n) ? n : 0;
+  // 与 Python 版保持一致：内部统一用秒，写各平台时再换算成毫秒。
+  // 之前这里返回毫秒，写入时又乘了 1000，导致 Cherry/Chatbox 收到微秒级
+  // 时间戳，new Date(值) 变成 Invalid Date，会话列表直接加载失败。
+  return Number.isFinite(n) ? Math.floor(n / 1000) : 0;
 }
 
 export async function openDeepSeek(buffer, JSZipLib) {
