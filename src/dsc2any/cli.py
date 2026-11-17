@@ -31,6 +31,8 @@ def main(argv=None) -> int:
     parser.add_argument("--with-thinking", action="store_true", help="包含思考过程")
     parser.add_argument("--chunk-size", type=int, default=200, help="ChatGPT JSON 每文件会话数，0 不拆分")
     parser.add_argument("--name", default=None, help="本次输出子文件夹名（默认按时间戳）")
+    parser.add_argument("--template", default=None, help="cherry-mobile 格式需要：手机端导出的备份 zip")
+    parser.add_argument("--select", default="", help="只导出标题包含这些关键词的会话，逗号分隔")
     parser.add_argument("--version", action="version", version=f"{APP_NAME} {APP_VERSION}")
     args = parser.parse_args(argv)
 
@@ -40,7 +42,12 @@ def main(argv=None) -> int:
             args.zip_path,
             str(target),
             fmt=args.format,
-            options=Options(with_thinking=args.with_thinking, chunk_size=args.chunk_size),
+            options=Options(
+                with_thinking=args.with_thinking,
+                chunk_size=args.chunk_size,
+                template=args.template,
+                select=tuple(item.strip() for item in args.select.split(",") if item.strip()),
+            ),
             log=print,
         )
     except ConversionError as error:

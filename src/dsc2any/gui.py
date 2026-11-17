@@ -29,13 +29,15 @@ class App(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title(f"{APP_NAME} {APP_VERSION}")
-        self.geometry("720x600")
+        self.geometry("720x680")
         self.minsize(660, 520)
         self._set_window_icon()
 
         self.zip_var = tk.StringVar()
         self.out_var = tk.StringVar()
         self.name_var = tk.StringVar()
+        self.template_var = tk.StringVar()
+        self.select_var = tk.StringVar()
         self.format_var = tk.StringVar(value="markdown")
         self.thinking_var = tk.BooleanVar(value=False)
         self.status_var = tk.StringVar(value="等待开始")
@@ -80,6 +82,14 @@ class App(tk.Tk):
         ttk.Label(files, text="本次子文件夹").grid(row=2, column=0, sticky="w")
         ttk.Entry(files, textvariable=self.name_var).grid(row=2, column=1, sticky="ew", padx=8, pady=3)
         ttk.Label(files, text="留空 = 按时间自动命名").grid(row=2, column=2, sticky="w")
+
+        ttk.Label(files, text="手机端模板").grid(row=3, column=0, sticky="w", pady=3)
+        ttk.Entry(files, textvariable=self.template_var).grid(row=3, column=1, sticky="ew", padx=8, pady=3)
+        ttk.Button(files, text="浏览…", command=self._pick_template, width=8).grid(row=3, column=2, pady=3)
+
+        ttk.Label(files, text="只导出标题包含").grid(row=4, column=0, sticky="w", pady=3)
+        ttk.Entry(files, textvariable=self.select_var).grid(row=4, column=1, sticky="ew", padx=8, pady=3)
+        ttk.Label(files, text="逗号分隔，留空导出全部").grid(row=4, column=2, sticky="w")
         files.columnconfigure(1, weight=1)
 
         formats = ttk.LabelFrame(outer, text=" 2. 输出格式 ", padding=(12, 8, 12, 10))
@@ -116,6 +126,14 @@ class App(tk.Tk):
             self.zip_var.set(path)
             if not self.out_var.get():
                 self.out_var.set(str(Path(path).with_suffix("")) + "_export")
+
+    def _pick_template(self):
+        path = filedialog.askopenfilename(
+            title="选择手机端导出的 cherry-mobile 备份",
+            filetypes=[("ZIP 备份", "*.zip")],
+        )
+        if path:
+            self.template_var.set(path)
 
     def _pick_out(self):
         path = filedialog.askdirectory(title="选择输出目录")
@@ -175,10 +193,20 @@ class App(tk.Tk):
         self.status_var.set("准备中…")
         self._save_settings()
 
-        options = Options(with_thinking=self.thinking_var.get())
+        fmt = self.format_var.get()
+        template = self.template_var.get().strip()
+        if fmt == "cherry-mobile" and not template:
+            messagebox.showwarning(APP_NAME, "Cherry 手机端格式需要先选择手机导出的备份作为模板。")
+            return
+
+        options = Options(
+            with_thinking=self.thinking_var.get(),
+            template=template or None,
+            select=tuple(item.strip() for item in self.select_var.get().split(",") if item.strip()),
+        )
         threading.Thread(
             target=self._worker,
-            args=(zip_path, target, self.format_var.get(), options),
+            args=(zip_path, target, fmt, options),
             daemon=True,
         ).start()
 

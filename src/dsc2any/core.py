@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 APP_NAME = "DeepSeek2Any"
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.1.0"
 PROJECT_URL = "https://github.com/CaZaYa/deepseek-chat-converter"
 
 TEXT_FRAGMENTS = {"REQUEST", "RESPONSE", "TEMPLATE_RESPONSE"}
@@ -21,6 +21,7 @@ FORMATS = (
     ("jsonl", "JSONL（每行一条消息，方便脚本处理）"),
     ("chatgpt", "ChatGPT JSON（Cherry Studio 等支持该格式的工具）"),
     ("chatbox", "Chatbox 备份包（V3 格式）"),
+    ("cherry-mobile", "Cherry 手机端备份（需模板）"),
 )
 
 
@@ -52,6 +53,8 @@ class Conversation:
 class Options:
     with_thinking: bool = False
     chunk_size: int = 200
+    template: str | None = None
+    select: tuple[str, ...] = ()
 
 
 @dataclass
@@ -434,6 +437,12 @@ def convert(zip_path, out_dir, fmt: str = "markdown", options: Options | None = 
 
     # 会话只遍历一次，但不同写出器需要重复使用，先收集到内存
     conversations = list(reader.conversations())
+    if options.select:
+        keywords = [item.lower() for item in options.select if item.strip()]
+        conversations = [
+            item for item in conversations
+            if any(keyword in item.title.lower() for keyword in keywords)
+        ]
     total = len(conversations)
     log(f"读取到 {total} 个会话")
 
@@ -447,6 +456,18 @@ def convert(zip_path, out_dir, fmt: str = "markdown", options: Options | None = 
     elif fmt == "jsonl":
         report.messages = write_jsonl(conversations, out_dir)
         report.files = 1
+    elif fmt == "cherry-mobile":
+        if not options.template:
+            raise ConversionError("cherry-mobile 需要 --template 指定手机端导出的备份作为模板。")
+        from .mobile import write_cherry_mobile
+
+        stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M")
+        session_count, message_count = write_cherry_mobile(
+            conversations, out_dir, options.template, stamp
+        )
+        report.conversations = session_count
+        report.files = 1
+        report.messages = message_count
     elif fmt == "chatbox":
         stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M")
         _sessions, message_count = write_chatbox(conversations, out_dir, stamp)

@@ -22,6 +22,7 @@ DeepSeek C 端开始限额后，很多人把聊天记录迁到 API 客户端。C
 | `jsonl` | 每行一条消息 | 脚本处理、数据集、二次转换 |
 | `chatgpt` | `conversations-*.json` | Cherry Studio 等支持 OpenAI 导出格式的工具 |
 | `chatbox` | `chatbox-backup-*.zip` | Chatbox（设置 → 数据管理 → 恢复），已实测导入 |
+| `cherry-mobile` | `cherry-mobile-*.zip` | Cherry Studio 手机端（设置 → 备份与恢复 → 恢复），需手机备份作模板 |
 
 ## 各客户端适用平台
 
@@ -55,6 +56,19 @@ DeepSeek C 端开始限额后，很多人把聊天记录迁到 API 客户端。C
 - **Open WebUI / LibreChat**：在其设置里选择 Import / 导入，选择 `conversations-*.json`
 - **Markdown**：不需要导入，直接用编辑器打开
 
+## 迁移到 Cherry Studio 手机端
+
+手机端不能导入 ChatGPT JSON，只认自己的备份格式。流程是「以手机备份为模板，保留其中已有会话，再追加要迁移的会话」：
+
+1. 手机 Cherry → 设置 → 备份与恢复 → 创建备份，把 zip 传到电脑
+2. 打开工具，格式选「Cherry 手机端备份」，在「手机端模板」里选这份备份
+3. 「只导出标题包含」可填关键词（逗号分隔），只迁移需要的会话
+4. 生成 `cherry-mobile-*.zip`，传回手机 → 设置 → 备份与恢复 → 恢复
+
+> 注意：恢复会**覆盖手机里现有的聊天和配置**，操作前先在手机上做一次备份。
+> 生成的备份会继承模板里的模型服务配置（含 API Key），不要发给别人。
+> 该格式基于手机端 0.3.x 的结构，App 升级后可能需要调整。
+
 ## 关于 Chatbox
 
 - 备份只包含会话本身，不含设置、Copilot 和凭据，因此不会携带 API Key
@@ -73,10 +87,11 @@ DeepSeek2Any-CLI.exe <导出包.zip> <输出目录> --format markdown
 DeepSeek2Any-CLI.exe <导出包.zip> <输出目录> --format jsonl --with-thinking
 DeepSeek2Any-CLI.exe <导出包.zip> <输出目录> --format chatgpt
 DeepSeek2Any-CLI.exe <导出包.zip> <输出目录> --format chatbox
-DeepSeek2Any-CLI.exe <导出包.zip> <输出目录> --format markdown --name 我的备份
+DeepSeek2Any-CLI.exe <导出包.zip> <输出目录> --format cherry-mobile --template 手机备份.zip
+DeepSeek2Any-CLI.exe <导出包.zip> <输出目录> --format markdown --select "高数,碰撞" --name 我的备份
 ```
 
-`--with-thinking` 会把思考过程一起导出；`--name` 指定本次子文件夹名，省略则按时间命名。
+`--with-thinking` 会把思考过程一起导出；`--name` 指定本次子文件夹名；`--select` 只导出标题包含指定关键词的会话；`--template` 是 cherry-mobile 格式必需的手机备份。
 
 ## 常见问题
 
