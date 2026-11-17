@@ -8,7 +8,8 @@
 
 ![界面](docs/screenshots/interface.png)
 
-> 纯本地运行：不联网、不上传、不需要安装 Python。
+> 纯本地运行：不联网、不上传、不需要安装 Python。  
+> 最新版下载：[GitHub Releases](https://github.com/CaZaYa/deepseek-chat-converter/releases/latest)；手机网页版：[打开](https://cazaya.github.io/deepseek-chat-converter/mobile/)。
 
 ## 为什么会有这个工具
 
