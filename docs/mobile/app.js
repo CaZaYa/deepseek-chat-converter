@@ -1,7 +1,7 @@
 import {
   openDeepSeek, parseDeepSeekEntries, writeChatbox, writeChatgpt,
   writeCherryMobileFromZip, writeChatboxMobile, writeJsonl, writeMarkdown,
-} from './converter.js?v=20261117f';
+} from './converter.js?v=20261117g';
 
 const $ = (id) => document.getElementById(id);
 const sourceInput = $('source');
@@ -27,6 +27,8 @@ let selected = new Set();   // 勾选的会话 id
 let loadToken = 0;
 let downloadUrls = [];
 let filterTimer = 0;
+const MAX_SOURCE_FILE_BYTES = 512 * 1024 * 1024;
+const MAX_TEMPLATE_FILE_BYTES = 1024 * 1024 * 1024;
 
 function setStatus(text) {
   statusEl.textContent = text;
@@ -101,6 +103,7 @@ async function loadSource() {
   }
   setStatus('正在读取导出包和会话标题…');
   try {
+    if (file.size > MAX_SOURCE_FILE_BYTES) throw new Error('导出包超过 512 MB，已停止处理');
     const buffer = await file.arrayBuffer();
     const opened = await openDeepSeek(buffer, window.JSZip);
     if (token !== loadToken) return;
@@ -181,6 +184,7 @@ async function convertEntries(entries, thinking, format, batchLabel) {
   if (format === 'cherry-mobile') {
     const templateFile = templateInput.files?.[0];
     if (!templateFile) throw new Error('Cherry 手机端格式需要先选择手机导出的备份作为模板');
+    if (templateFile.size > MAX_TEMPLATE_FILE_BYTES) throw new Error('模板超过 1 GB，已停止处理');
     const templateBuffer = await templateFile.arrayBuffer();
     setStatus(`${batchLabel}正在加载 SQLite 引擎…`);
     const sqlite3 = await loadSqlite();

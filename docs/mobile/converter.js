@@ -2,6 +2,26 @@
 
 const encoder = new TextEncoder();
 
+const MAX_ZIP_ENTRIES = 20000;
+const MAX_EXPANDED_BYTES = 1024 * 1024 * 1024; // 1 GB，防止压缩炸弹
+
+/** 在真正解压会话前检查条目数/解压后总大小，避免恶意 ZIP 把手机浏览器拖死。 */
+export function assertZipLimits(zip, { maxEntries = MAX_ZIP_ENTRIES, maxExpanded = MAX_EXPANDED_BYTES, label = '压缩包' } = {}) {
+  const files = Object.values(zip.files || {});
+  if (files.length > maxEntries) {
+    throw new Error(`${label}里的文件太多（${files.length} 个），已停止处理`);
+  }
+  let total = 0;
+  for (const file of files) {
+    if (file.dir) continue;
+    const size = Number(file._data?.uncompressedSize ?? 0);
+    if (Number.isFinite(size) && size > 0) total += size;
+    if (total > maxExpanded) {
+      throw new Error(`${label}解压后超过 1 GB，已停止处理。请换一个更小的导出包或先分批`);
+    }
+  }
+}
+
 export function stableId(...parts) {
   let h1 = 1779033703, h2 = 3144134277, h3 = 1013904242, h4 = 2773480762;
   const str = 'deepseek2any-mobile:' + parts.join(':');
@@ -37,9 +57,11 @@ function ts(value) {
 
 export async function openDeepSeek(buffer, JSZipLib) {
   const zip = await JSZipLib.loadAsync(buffer);
+  assertZipLimits(zip, { label: 'DeepSeek 导出包' });
   const indexFile = zip.file('chat_session_index.json');
   if (!indexFile) throw new Error('这不是 DeepSeek 导出的数据包（缺少 chat_session_index.json）');
   const index = JSON.parse(await indexFile.async('string'));
+  if (index.length > 20000) throw new Error(`会话数量过多（${index.length} 个），已停止处理`);
   return { zip, index };
 }
 
@@ -344,6 +366,7 @@ async function sha256(bytes) {
 
 async function openCherryTemplate(templateBuffer, JSZipLib, sqlite3) {
   const template = await JSZipLib.loadAsync(templateBuffer);
+  assertZipLimits(template, { label: 'Cherry 手机端模板' });
   const manifestFile = template.file('manifest.json');
   const dbFile = template.file('database/cherry.db');
   if (!manifestFile || !dbFile) throw new Error('模板不是 Cherry 手机端备份（缺少 manifest.json 或 database/cherry.db）');
