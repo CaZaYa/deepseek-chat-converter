@@ -73,6 +73,8 @@ https://cazaya.github.io/deepseek-chat-converter/mobile/
 - 所有转换在浏览器本地完成；首次打开需要联网加载页面，手机流量可用（前提是能访问 GitHub Pages）
 - 可以“添加到主屏幕”，当成轻量 App 使用
 
+> 请用上面的 https 链接打开，不要直接双击本地 `index.html`；浏览器会拦截 ES module / WASM。
+>
 > 手机端 Cherry 的备份需要以你手机导出的备份作为模板；恢复会覆盖手机现有数据，操作前先备份手机。
 
 ## 迁移到 Cherry Studio 手机端

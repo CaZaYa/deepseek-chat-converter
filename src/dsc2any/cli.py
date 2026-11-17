@@ -8,7 +8,26 @@ import sys
 from .core import APP_NAME, APP_VERSION, FORMATS, ConversionError, Options, convert, run_directory
 
 
+def _configure_console() -> None:
+    """让 Windows 控制台按 UTF-8 显示中文，避免 cmd/PowerShell 乱码。"""
+    if sys.platform != "win32":
+        return
+    try:
+        import ctypes
+
+        ctypes.windll.kernel32.SetConsoleOutputCP(65001)
+        ctypes.windll.kernel32.SetConsoleCP(65001)
+    except Exception:
+        pass
+    for stream in (sys.stdout, sys.stderr, sys.stdin):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+
+
 def main(argv=None) -> int:
+    _configure_console()
     argv = sys.argv[1:] if argv is None else list(argv)
     if not argv:
         print(f"{APP_NAME} {APP_VERSION} —— 命令行版本")
