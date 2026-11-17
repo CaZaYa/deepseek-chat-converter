@@ -455,11 +455,20 @@ export async function writeCherryMobile(conversations, templateBuffer, JSZipLib,
   }
 }
 
-export async function writeCherryMobileFromZip(zip, entries, includeThinking, templateBuffer, JSZipLib, sqlite3, onProgress) {
+export async function writeCherryMobileFromZip(
+  zip, entries, includeThinking, templateBuffer, JSZipLib, sqlite3,
+  { keepTemplate = false, onProgress } = {},
+) {
   const { template, manifest, db, agentId, modelId } = await openCherryTemplate(templateBuffer, JSZipLib, sqlite3);
   try {
     let imported = 0;
     db.exec('BEGIN');
+    if (!keepTemplate) {
+      // 模板只提供数据库结构和配置。默认清空模板里的旧会话，避免“只选了 3 个，
+      // 却把模板里的 1400 个一起导出”。触发器会同步清理 FTS 索引。
+      db.exec('DELETE FROM agent_session_message');
+      db.exec('DELETE FROM agent_session');
+    }
     for (const entry of entries) {
       const conversation = await conversationFromZip(zip, entry, includeThinking);
       if (conversation && insertConversation(db, conversation, agentId, modelId)) imported += 1;
@@ -468,7 +477,7 @@ export async function writeCherryMobileFromZip(zip, entries, includeThinking, te
     }
     db.exec('COMMIT');
     const result = await finishCherryMobile(db, template, manifest, sqlite3, JSZipLib);
-    result.sessions = imported;
+    result.imported = imported;
     return result;
   } catch (error) {
     try { db.exec('ROLLBACK'); } catch (_) { /* ignore */ }

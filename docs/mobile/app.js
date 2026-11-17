@@ -15,6 +15,8 @@ const runButton = $('run');
 const statusEl = $('status');
 const downloadsEl = $('downloads');
 const templateField = $('template-field');
+const templateModeField = $('template-mode-field');
+const templateModeSelect = $('template-mode');
 const picker = $('picker');
 const pickerCount = $('picker-count');
 const sessionList = $('session-list');
@@ -166,6 +168,10 @@ function addDownload(result, results) {
   const url = URL.createObjectURL(blob);
   downloadUrls.push(url);
   const item = { filename: result.filename, size: blob.size, url };
+  if (result.imported !== undefined) {
+    item.imported = result.imported;
+    item.sessions = result.sessions;
+  }
   results.push(item);
   renderDownloads(results);
   return item;
@@ -180,7 +186,10 @@ async function convertEntries(entries, thinking, format, batchLabel) {
     const sqlite3 = await loadSqlite();
     return writeCherryMobileFromZip(
       source.zip, entries, thinking, templateBuffer, window.JSZip, sqlite3,
-      (done, total) => setStatus(`${batchLabel}正在写入数据库… ${done}/${total} 个会话`),
+      {
+        keepTemplate: templateModeSelect.value === 'keep',
+        onProgress: (done, total) => setStatus(`${batchLabel}正在写入数据库… ${done}/${total} 个会话`),
+      },
     );
   }
 
@@ -196,11 +205,17 @@ async function convertEntries(entries, thinking, format, batchLabel) {
   throw new Error('未知格式');
 }
 
+function updateTemplateVisibility() {
+  const isCherryMobile = formatSelect.value === 'cherry-mobile';
+  templateField.hidden = !isCherryMobile;
+  templateModeField.hidden = !isCherryMobile;
+}
+
 formatSelect.addEventListener('change', () => {
-  templateField.hidden = formatSelect.value !== 'cherry-mobile';
+  updateTemplateVisibility();
   updateBatchNote();
 });
-templateField.hidden = formatSelect.value !== 'cherry-mobile';
+updateTemplateVisibility();
 batchInput.addEventListener('input', updateBatchNote);
 updateBatchNote();
 
@@ -271,12 +286,23 @@ runButton.addEventListener('click', async () => {
       const result = await convertEntries(batches[index], thinking, format, batchLabel);
       result.filename = partName(result.filename, index, batches.length);
       addDownload(result, results);
-      setStatus(`${batchLabel}已生成 ${result.filename}（${(results[index].size / 1024).toFixed(0)} KB）`);
+      const countText = result.imported !== undefined
+        ? (result.imported === result.sessions
+          ? `${result.imported} 个会话`
+          : `本批 ${result.imported} 个，模板已有 ${result.sessions - result.imported} 个，总计 ${result.sessions} 个会话`)
+        : '';
+      setStatus(`${batchLabel}已生成 ${result.filename}（${(results[index].size / 1024).toFixed(0)} KB${countText ? `，${countText}` : ''}）`);
     }
 
     if (results.length === 1) {
-      setStatus(`完成：${results[0].filename}（${(results[0].size / 1024).toFixed(0)} KB）。若没有自动下载，点下面的链接。`);
-      try { results[0].link.click(); } catch (_) { /* ignore */ }
+      const item = results[0];
+      const countText = item.imported !== undefined
+        ? (item.imported === item.sessions
+          ? `，${item.imported} 个会话`
+          : `，本批 ${item.imported} 个 + 模板已有 ${item.sessions - item.imported} 个 = ${item.sessions} 个会话`)
+        : '';
+      setStatus(`完成：${item.filename}（${(item.size / 1024).toFixed(0)} KB${countText}）。若没有自动下载，点下面的链接。`);
+      try { item.link.click(); } catch (_) { /* ignore */ }
     } else {
       setStatus(`完成：共 ${results.length} 个文件（${formatName}）。手机浏览器通常不允许一次自动下载多个，请点下面的链接逐个保存。`);
     }

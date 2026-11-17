@@ -39,6 +39,15 @@
         <input id="template" type="file" accept=".zip,application/zip" />
       </label>
 
+      <label class="field" id="template-mode-field">
+        <span>模板里已有的会话怎么处理</span>
+        <select id="template-mode">
+          <option value="clear">只导出勾选的会话（清空模板已有会话）</option>
+          <option value="keep">保留模板已有会话，把勾选的追加进去</option>
+        </select>
+      </label>
+      <p class="note">模板只提供数据库结构和模型配置。选“只导出勾选”会清空模板里的旧聊天；要保留旧聊天请选第二项。</p>
+
       <label class="field">
         <span>搜索标题（只筛选下方列表，不影响勾选）</span>
         <input id="filter" type="text" placeholder="例如：高数,碰撞" />
