@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 APP_NAME = "DeepSeek2Any"
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.1.0"
 PROJECT_URL = "https://github.com/CaZaYa/deepseek-chat-converter"
 
 TEXT_FRAGMENTS = {"REQUEST", "RESPONSE", "TEMPLATE_RESPONSE"}
@@ -21,6 +21,8 @@ FORMATS = (
     ("jsonl", "JSONL（每行一条消息，方便脚本处理）"),
     ("chatgpt", "ChatGPT JSON（Cherry Studio 等支持该格式的工具）"),
     ("chatbox", "Chatbox 备份包（V3 格式）"),
+    ("cherry-mobile", "Cherry 手机端备份（需模板）"),
+    ("chatbox-mobile", "Chatbox 手机端备份（JSON）"),
 )
 
 
@@ -52,6 +54,8 @@ class Conversation:
 class Options:
     with_thinking: bool = False
     chunk_size: int = 200
+    template: str | None = None
+    select: tuple[str, ...] = ()
 
 
 @dataclass
@@ -273,6 +277,56 @@ def write_chatgpt(conversations, out_dir: Path, chunk_size: int) -> int:
     return files
 
 
+def write_chatbox_mobile(conversations, out_dir: Path, stamp: str) -> tuple[int, int]:
+    sessions = []
+    messages_total = 0
+    payload = {
+        "configVersion": 13,
+        "__exported_items": ["conversations"],
+        "__exported_at": datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z"),
+        "myCopilots": [],
+        "chat-sessions-list": sessions,
+    }
+    for conversation in conversations:
+        path = _active_path(conversation)
+        if not path:
+            continue
+        session_id = _stable_uuid(conversation.id, "session")
+        sessions.append({"id": session_id, "name": conversation.title, "starred": False, "type": "chat"})
+        messages = []
+        for message in path:
+            parts = []
+            if message.reasoning:
+                parts.append({"type": "reasoning", "text": message.reasoning})
+            if message.text:
+                parts.append({"type": "text", "text": message.text})
+            if not parts:
+                continue
+            text = message.text
+            item = {
+                "id": _stable_uuid(conversation.id, message.id),
+                "role": message.role,
+                "contentParts": parts,
+                "content": text,
+                "timestamp": (message.created or conversation.updated or conversation.created) * 1000,
+            }
+            if message.role == "assistant":
+                item.update({"model": "deepseek-chat", "aiProvider": "deepseek", "status": "finished", "generating": False})
+            messages.append(item)
+        payload[f"session:{session_id}"] = {
+            "id": session_id,
+            "name": conversation.title,
+            "type": "chat",
+            "starred": False,
+            "settings": {"provider": "deepseek", "modelId": "deepseek-chat", "temperature": 0.7},
+            "messages": messages,
+        }
+        messages_total += len(messages)
+    path = out_dir / f"chatbox-exported-data-{stamp}.json"
+    path.write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    return len(sessions), messages_total
+
+
 def _stable_uuid(*parts) -> str:
     return str(uuid.uuid5(uuid.NAMESPACE_URL, "deepseek2any:" + ":".join(str(part) for part in parts)))
 
@@ -434,6 +488,12 @@ def convert(zip_path, out_dir, fmt: str = "markdown", options: Options | None = 
 
     # 会话只遍历一次，但不同写出器需要重复使用，先收集到内存
     conversations = list(reader.conversations())
+    if options.select:
+        keywords = [item.lower() for item in options.select if item.strip()]
+        conversations = [
+            item for item in conversations
+            if any(keyword in item.title.lower() for keyword in keywords)
+        ]
     total = len(conversations)
     log(f"读取到 {total} 个会话")
 
@@ -447,6 +507,24 @@ def convert(zip_path, out_dir, fmt: str = "markdown", options: Options | None = 
     elif fmt == "jsonl":
         report.messages = write_jsonl(conversations, out_dir)
         report.files = 1
+    elif fmt == "chatbox-mobile":
+        stamp = datetime.datetime.now().strftime("%Y-%m-%d")
+        session_count, message_count = write_chatbox_mobile(conversations, out_dir, stamp)
+        report.files = 1
+        report.messages = message_count
+        report.conversations = session_count
+    elif fmt == "cherry-mobile":
+        if not options.template:
+            raise ConversionError("cherry-mobile 需要 --template 指定手机端导出的备份作为模板。")
+        from .mobile import write_cherry_mobile
+
+        stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M")
+        session_count, message_count = write_cherry_mobile(
+            conversations, out_dir, options.template, stamp
+        )
+        report.conversations = session_count
+        report.files = 1
+        report.messages = message_count
     elif fmt == "chatbox":
         stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M")
         _sessions, message_count = write_chatbox(conversations, out_dir, stamp)

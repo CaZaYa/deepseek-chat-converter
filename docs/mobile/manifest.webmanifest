@@ -1,0 +1,11 @@
+{
+  "name": "DeepSeek 记录迁移",
+  "short_name": "DS 迁移",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f4f6fa",
+  "theme_color": "#1f3a63",
+  "icons": [
+    { "src": "icon.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

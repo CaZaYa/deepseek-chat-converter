@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>DeepSeek 记录迁移 · 手机端</title>
+  <meta name="theme-color" content="#1f3a63" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="icon.png" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="app">
+    <header>
+      <h1>DeepSeek 记录迁移</h1>
+      <p class="sub">在手机上把 DeepSeek 导出的聊天记录转换成客户端可用的格式。<br />全程本地处理，不上传任何数据。</p>
+    </header>
+
+    <section class="card">
+      <label class="field">
+        <span>DeepSeek 导出包（zip）</span>
+        <input id="source" type="file" accept=".zip,application/zip" />
+      </label>
+
+      <label class="field">
+        <span>输出格式</span>
+        <select id="format">
+          <option value="cherry-mobile">Cherry Studio 手机端备份（需模板）</option>
+          <option value="chatbox">Chatbox 备份（桌面 V3 zip）</option>
+          <option value="chatbox-mobile">Chatbox 手机端备份（JSON）</option>
+          <option value="markdown">Markdown 文集</option>
+          <option value="chatgpt">ChatGPT JSON</option>
+          <option value="jsonl">JSONL</option>
+        </select>
+      </label>
+
+      <label class="field" id="template-field">
+        <span>手机端备份模板（Cherry 手机端格式必填）</span>
+        <input id="template" type="file" accept=".zip,application/zip" />
+      </label>
+
+      <label class="field">
+        <span>只导出标题包含（可选，逗号分隔）</span>
+        <input id="filter" type="text" placeholder="例如：高数,碰撞" />
+      </label>
+
+      <label class="check">
+        <input id="thinking" type="checkbox" />
+        <span>包含思考过程</span>
+      </label>
+
+      <button id="run" type="button">生成文件</button>
+      <p id="status" class="status">等待选择文件</p>
+      <a id="download" class="download" hidden>下载生成的文件</a>
+    </section>
+
+    <footer>
+      <p>Cherry 手机端备份会覆盖手机数据，恢复前请先在手机上备份。Chatbox 备份不包含原图。</p>
+      <p>网页版只做格式转换；Cherry 手机端的模板必须来自同一版本的手机 App。</p>
+    </footer>
+  </main>
+
+  <script src="vendor/jszip.min.js"></script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
