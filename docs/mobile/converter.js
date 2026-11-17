@@ -378,15 +378,30 @@ function insertConversation(db, conversation, agentId, modelId) {
     bind: [sessionId, agentId, conversation.title, updated, created, updated],
   });
   for (const message of path) {
+    const messageRowId = stableId(conversation.id, message.id);
     const parts = [];
-    if (message.reasoning) parts.push({ type: 'reasoning', text: message.reasoning });
-    if (message.text) parts.push({ type: 'text', text: message.text });
+    if (message.reasoning) {
+      parts.push({
+        id: `${messageRowId}:part-${parts.length}`,
+        type: 'reasoning',
+        text: message.reasoning,
+        state: 'done',
+      });
+    }
+    if (message.text) {
+      parts.push({
+        id: `${messageRowId}:part-${parts.length}`,
+        type: 'text',
+        text: message.text,
+        state: 'done',
+      });
+    }
     if (!parts.length) continue;
     const time = (message.created || conversation.updated || conversation.created) * 1000;
     db.exec({
       sql: "INSERT INTO agent_session_message (id, session_id, role, data, status, model_id, searchable_text, created_at, updated_at) VALUES (?, ?, ?, ?, 'success', ?, ?, ?, ?)",
       bind: [
-        stableId(conversation.id, message.id), sessionId, message.role,
+        messageRowId, sessionId, message.role,
         JSON.stringify({ parts }), message.role === 'assistant' ? modelId : null,
         parts.map((p) => p.text).join('\n'), time, time,
       ],

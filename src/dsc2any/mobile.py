@@ -98,11 +98,22 @@ def write_cherry_mobile(conversations, out_dir: Path, template_path: str, stamp:
                 )
 
                 for message in messages:
+                    message_row_id = _stable_uuid(conversation.id, message.id)
                     parts = []
                     if message.reasoning:
-                        parts.append({"type": "reasoning", "text": message.reasoning})
+                        parts.append({
+                            "id": f"{message_row_id}:part-{len(parts)}",
+                            "type": "reasoning",
+                            "text": message.reasoning,
+                            "state": "done",
+                        })
                     if message.text:
-                        parts.append({"type": "text", "text": message.text})
+                        parts.append({
+                            "id": f"{message_row_id}:part-{len(parts)}",
+                            "type": "text",
+                            "text": message.text,
+                            "state": "done",
+                        })
                     if not parts:
                         continue
                     timestamp = (message.created or conversation.updated or conversation.created) * 1000
@@ -114,7 +125,7 @@ def write_cherry_mobile(conversations, out_dir: Path, template_path: str, stamp:
                         "(id, session_id, role, data, status, model_id, searchable_text, created_at, updated_at) "
                         "VALUES (?, ?, ?, ?, 'success', ?, ?, ?, ?)",
                         (
-                            _stable_uuid(conversation.id, message.id),
+                            message_row_id,
                             session_id,
                             message.role,
                             json.dumps({"parts": parts}, ensure_ascii=False),
